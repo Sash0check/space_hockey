@@ -14,7 +14,7 @@ let bases_layer = new Konva.Layer();
 let mods_layer = new Konva.Layer();
 let ball_layer = new Konva.Layer();
 
-let instuctions  = new Image();
+let instuctions = new Image();
 instuctions.onload = function() {
     let graphic = new Konva.Image({
         x: 750,
@@ -77,15 +77,15 @@ class Counter {
             text: this.red + " - " + this.green,
         });
         this.bg1.setAttrs({
-            x: this.x,
+            x: this.x - this.xpadding,
             y: this.y,
-            width: this.text.textWidth / 2,
+            width: this.text.textWidth / 2 + this.xpadding,
             height: this.text.textHeight,
         });
         this.bg2.setAttrs({
             x: this.x + this.text.textWidth / 2,
             y: this.y,
-            width: this.text.textWidth / 2,
+            width: this.text.textWidth / 2 + this.xpadding,
             height: this.text.textHeight
         });
         // console.log(this.text);
@@ -113,7 +113,7 @@ class Cell {
             // cells_layer.draw();
             // console.log(this);
         });
-        this.slots = {"mod": 0, "base": 0};
+        this.slots = {"mod": null, "base": null};
     }
 
 }
@@ -177,7 +177,7 @@ class Field {
 }
 
 class Modifier {
-// 'etheral' 'fast', 'magnet', 'slow', 'vector'
+
     constructor(size, img_name, docer, type, ability, value, coords) {
         this.imageObj = new Image();
         this.graphic = null;
@@ -202,8 +202,7 @@ class Modifier {
             }else{
                 let x = docer.pos_x + coords.x * docer.cell_size + docer.padding * coords.x;
                 let y = docer.pos_y + coords.y * docer.cell_size + docer.padding * coords.y;
-                docer.cells[coords.x][coords.y].slots['mod'] = true;
-                docer.cells[coords.x][coords.y].slots['base'] = true;
+                docer.cells[coords.x][coords.y].slots['hole'] = tparent;
                 // console.log(tparent);
                 graphic.setX(x);
                 graphic.setY(y);
@@ -224,7 +223,9 @@ class Modifier {
         if (this.life == 0){
             this.graphic.destroy();
             bases_layer.draw();
+            return "dead";
         }
+        return "alive";
     }
 
 }
@@ -264,28 +265,14 @@ class Docer {
         }
     }
     push(mod){
-
-        // top:
-        // for (let row in this.cells){
-        //     row = this.cells[row];
-        //     for (let cell in row) {
-        //         cell = row[cell];
-        //         if (Object.values(cell.slots).reduce((a, b) => a + b, 0) == 0) {
-        //             mod.graphic.setX(cell.graphic.position().x);
-        //             mod.graphic.setY(cell.graphic.position().y);
-        //             cell.slots[mod.type] = 1;
-        //             break top;
-        //         }
-        //     }
-        // }
         top:
         for (let j = 0; j < this.cells[0].length; j++){
             for (let i = 0; i < this.cells.length; i++){
                 let cell = this.cells[i][j];
-                if (Object.values(cell.slots).reduce((a, b) => a + b, 0) == 0) {
+                if (Object.values(cell.slots)[0] == null && Object.values(cell.slots)[1] == null) {
                     mod.graphic.setX(cell.graphic.position().x);
                     mod.graphic.setY(cell.graphic.position().y);
-                    cell.slots[mod.type] = 1;
+                    cell.slots[mod.type] = mod;
                     break top;
                 }
             }
@@ -300,6 +287,39 @@ class Docer {
 
     }
 }
+// def mag(self):
+//     return (self.x * self.x + self.y * self.y) ** 0.5
+//
+// def norm(self):
+//     m = self.mag()
+//     if (m > 0):
+//         self /= m
+//
+// def limit(self, max_value):
+//     if self.mag() > max_value:
+//         self.norm()
+//         self.mul(max_value)
+
+function mag(vector) {
+    return (vector.x * vector.x + vector.y * vector.y) ** 0.5
+}
+
+function norm(vector) {
+    let m = mag(vector);
+    if (m > 0){
+        return {x: vector.x / m, y:  vector.y / m}
+    }
+}
+
+function limit(vector, lim) {
+    let v = vector;
+    if (mag(vector) > lim){
+        v = norm(vector);
+        v.x *= lim;
+        v.y *= lim;
+    }
+    return v;
+}
 
 class Ball{
     constructor(pos_x, pos_y, radius, color, vector, field) {
@@ -308,16 +328,13 @@ class Ball{
         this.radius = radius;
         this.color = color;
         this.in_cell = false;
+        this.timer = null;
+        this.inviz = false;
+        this.inviz_count = 0;
         if (vector != null){
             this.vector = vector;
         }else{
-            let x = randomInt(-min_speed, max_speed);
-            let y = randomInt(-min_speed, max_speed);
-            while (x==0 || y==0){
-                x = randomInt(-min_speed, max_speed);
-                y = randomInt(-min_speed, max_speed);
-            }
-            this.vector = {x: x, y: y};
+            this.random_vector();
         }
 
         this.field = field;
@@ -335,63 +352,199 @@ class Ball{
         tparent.anim = new Konva.Animation(function(frame) {
             var pos = {x: tparent.graphic.position().x + tparent.radius, y: tparent.graphic.position().y + tparent.radius};
             let cell = cells_layer.getIntersection(pos);
-            let base = bases_layer.getIntersection(pos);
-            let mod = mods_layer.getIntersection(pos);
+            let base = null;
+            let mod = null;
+            let hole = null;
+            if (cell != null){
+                cell = cell.attrs.parent_class;
+                base = cell.slots["base"];
+                mod = cell.slots["mod"];
+                hole = cell.slots["hole"];
+            }
             // if (shape!=null){
             //     shape.attrs.fill = "black";
             //     cells_layer.draw();
             // }
             if (base != null){
                 if (!tparent.in_cell) {
-                    tparent.in_cell = true;
-                    let base_parent = base.attrs.parent_class;
-                    if (mod != null) {
-                        let mod_parent = mod.attrs.parent_class;
-                        if (mod_parent.type == "hole") {
-                            if (mod_parent.ability == "red")
-                                counter.red++;
-                            else
-                                counter.green++;
-                            tparent.respawn();
-                            counter.update();
+                    if (!tparent.inviz) {
+                        tparent.in_cell = true;
+                        let base_result = {type: "vector", vector: {x: 0, y: 0}};
+                        let mod_result = {type: "vector", vector: {x: 0, y: 0}};
+                        if (mod != null) {
+                            // 'etheral' 'fast', 'magnet', 'slow', 'vector'
+                            switch (mod.ability) {
+                                case "etheral":
+                                    mod_result.type = "no_hit";
+                                    break;
+                                case "fast":
+                                    tparent.vector.x *= 2;
+                                    tparent.vector.y *= 2;
+                                    break;
+                                case "magnet":
+                                    break;
+                                case "slow":
+                                    tparent.vector.x /= 2;
+                                    tparent.vector.y /= 2;
+                                    break;
+                                case "vector":
+                                    tparent.vector.y *= -1;
+                                    break;
+                                case "random":
+                                    tparent.vector.y *= -1;
+                                    break;
+
+                                case "fake":
+                                    break;
+                                case "wallbreaker":
+                                    console.log("on");
+                                    tparent.inviz_count = 0;
+                                    tparent.inviz = true;
+                                    break;
+                                case "portal":
+                                    let x = null;
+                                    let y = null;
+                                    if (tparent.graphic.position().y > tparent.field.center.y){
+                                        x = randomInt(tparent.field.corners[0].x, tparent.field.corners[1].x);
+                                        y = randomInt(tparent.field.pos_y, tparent.field.center.y);
+                                    }else{
+                                        x = randomInt(tparent.field.corners[0].x, tparent.field.corners[1].x);
+                                        y = randomInt(tparent.field.center.y, tparent.field.corners[1].y);
+                                    }
+                                    tparent.in_cell = false;
+                                    tparent.graphic.setX(x);
+                                    tparent.graphic.setY(y);
+                                    ball_layer.draw();
+                                case "timer":
+                                    this.timer = {state:false, time: performance.now() / 1000};
+                                    break;
+                            }
                         }
+
+
+                        switch (base.ability) {
+                            case "etheral":
+                                base_result.type = "no_hit";
+                                break;
+                            case "fast":
+                                tparent.vector.x *= 2;
+                                tparent.vector.y *= -2;
+                                break;
+                            case "magnet":
+                                tparent.vector.y *= -1;
+                                break;
+                            case "slow":
+                                tparent.vector.x /= 2;
+                                tparent.vector.y /= -2;
+                                break;
+                            case "vector":
+                                tparent.vector.x += 0.5;
+                                tparent.vector.y *= -1;
+                                break;
+                        }
+                        /// Удар
+                        if (base_result.type != "no_hit" && mod_result.type != "no_hit") {
+                            let status = base.hit();
+                            if (status == "dead") {
+                                if (mod != null) {
+                                    mod.graphic.destroy();
+                                    mods_layer.draw();
+                                }
+                                cell.slots["base"] = null;
+                                cell.slots["mod"] = null;
+                            }
+                        }
+
+                        tparent.vector = limit(tparent.vector, 15);
+                    }else if(mod!= null && mod.ability=="wallbreaker") {
+
                     }else{
-                        base_parent.hit();
+                        tparent.in_cell = true;
+                        tparent.inviz_count++;
+                        // console.log(tparent.inviz_count);
+                    }
+
+
+                    if (tparent.inviz_count == 1){
+                        tparent.inviz = false;
+                        console.log("off");
                     }
                 }
+
+            }else if(hole != null){
+                if (hole.ability == "red")
+                    counter.red++;
+                else
+                    counter.green++;
+                tparent.respawn();
+                counter.update();
             }else{
                 tparent.in_cell = false;
             }
+            if (!tparent.inviz){
+                tparent.borders();
+            }else{
+                tparent.magic_borders();
+            }
 
-
-            tparent.borders();
+            tparent.graphic.x(
+                tparent.graphic.position().x + tparent.vector.x,
+        );
+            tparent.graphic.y(
+                tparent.graphic.position().y + tparent.vector.y,
+            );
         }, ball_layer);
-        tparent.anim.start();
+        // tparent.anim.start();
     }
-    respawn(){
-        let x = randomInt(-10, 10);
-        let y = randomInt(-10, 10);
+    random_vector(){
+        let x = randomInt(min_speed, max_speed);
+        let y = randomInt(min_speed, max_speed);
         while (x==0 || y==0){
-            x = randomInt(-min_speed, max_speed);
-            y = randomInt(-min_speed, max_speed);
+            x = randomInt(min_speed, max_speed);
+            y = randomInt(min_speed, max_speed);
         }
         this.vector = {x: x, y: y};
+    }
+    respawn(){
+        this.random_vector();
         this.graphic.setX(this.pos_x);
         this.graphic.setY(this.pos_y);
     }
     borders(){
         if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x >= this.field.corners[1].x){
             this.vector.x = this.vector.x * -1;
+            if (this.vector.x < 0)
+                this.vector.x-=0.05;
+            else
+                this.vector.x+=0.05;
+            // console.log(this.vector.x);
         }
         if (this.graphic.position().y <= this.field.corners[0].y || this.graphic.position().y >= this.field.corners[1].y){
             this.vector.y = this.vector.y * -1;
+            if (this.vector.x < 0)
+                this.vector.x-=0.05;
+            else
+                this.vector.x+=0.05;
         }
-        this.graphic.x(
-            this.graphic.position().x + this.vector.x,
-        );
-        this.graphic.y(
-            this.graphic.position().y + this.vector.y,
-        );
+    }
+
+    magic_borders(){
+        let w = this.field.width * this.field.cell_size + (this.field.width + 1) * this.field.padding
+        let h = this.field.height * this.field.cell_size + (this.field.height + 1) * this.field.padding
+        // width: this.width * this.cell_size + (this.width + 1) * this.padding,
+        //     height: this.height / 2 * this.cell_size + (this.height + 1) / 2 * this.padding,
+        let c = 0;
+        if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x >= this.field.corners[1].x){
+            this.graphic.setX(this.graphic.position().x % w);
+            c++;
+        }
+        if (this.graphic.position().y <= this.field.corners[0].y || this.graphic.position().y >= this.field.corners[1].y){
+            this.graphic.setY(this.graphic.position().y % h);
+            c++;
+        }
+        if (c!=0){
+            this.inviz = false;
+        }
     }
 }
 
@@ -417,35 +570,72 @@ stage.on('dragend', function(evt) {
         var cell = cells_layer.getIntersection(pos);
         var base = bases_layer.getIntersection(pos);
         var mod = mods_layer.getIntersection(pos);
-        // console.log("end");
-        // console.log(cell);
-        // console.log(evt.target);
-        // console.log(shape.attrs.parent_class.status);
-        // if (cell!=null)
-        //     console.log(cell.attrs.parent_class);
-        // console.log(evt.target.attrs.parent_class.type);
-        if (cell != null && cell.attrs.parent_class.slots[evt.target.attrs.parent_class.type] == 0) {
+
+        let type = evt.target.attrs.parent_class.type;
+        if (cell != null && cell.attrs.parent_class.slots[type] == null) {
             //если место свободно то ставить
-            // console.log(cell);
-            // console.log(shape.position());
-            evt.target.setX(cell.position().x);
-            evt.target.setY(cell.position().y);
-            last_place.slots[evt.target.attrs.parent_class.type] = 0;
-            cell.attrs.parent_class.slots[evt.target.attrs.parent_class.type] = 1;
-            bases_layer.draw();
-            mods_layer.draw();
-            last_place = null;
+            cell = cell.attrs.parent_class;
+            let ability1 = evt.target.attrs.parent_class.ability;
+            let ability2 = null;
+            if (cell.slots['mod'] != null){
+                ability2 = cell.slots['mod'].ability;
+            }else if (cell.slots['base'] != null){
+                ability2 = cell.slots['base'].ability;
+            }
+            if (ability1 == ability2){
+                return_to_place();
+            }else {
+                evt.target.setX(cell.graphic.position().x);
+                evt.target.setY(cell.graphic.position().y);
+                last_place.slots[type] = null;
+                cell.slots[type] = evt.target.attrs.parent_class;
+                bases_layer.draw();
+                mods_layer.draw();
+                last_place = null;
+            }
         } else {
             // если место занято то вернуть на место
-            // console.log(evt.target);
-            evt.target.setX(last_place.graphic.attrs.x);
-            evt.target.setY(last_place.graphic.attrs.y);
-            last_place = null;
-            bases_layer.draw();
-            mods_layer.draw();
+            return_to_place();
         }
     }
+    function return_to_place(){
+        evt.target.setX(last_place.graphic.attrs.x);
+        evt.target.setY(last_place.graphic.attrs.y);
+        last_place = null;
+        bases_layer.draw();
+        mods_layer.draw();
+    }
 });
+
+button = new Konva.Text({
+    x: 40,
+    y: 500,
+    text: "Start",
+    fontSize: 72,
+    fontFamily: 'Calibri',
+    fill: 'Black',
+    state: false
+});
+
+button.on('click', () => {
+    let text = "";
+    if (button.attrs.state){
+        text = "Start";
+        ball.anim.stop();
+
+    }else{
+        text = "Stop";
+        ball.anim.start();
+    }
+    button.attrs.state = !button.attrs.state;
+    button.setAttrs({
+        text: text,
+    });
+    background_layer.draw();
+    // alert('clicked on canvas button');
+});
+
+background_layer.add(button);
 
 
 let field = new Field(320,40,8, 10, 40, 12, ['green', 'red']);
@@ -456,6 +646,7 @@ let docer2 = new Docer(760,450,5, 4, 40, 12, 'red');
 new Modifier(40, "res/images/add_etheral.png", docer1, 'mod','etheral');
 new Modifier(40, "res/images/add_fake.png", docer1, 'mod','fake');
 new Modifier(40, "res/images/add_fast.png", docer1, 'mod','fast');
+new Modifier(40, "res/images/add_slow.png", docer1, 'mod','slow');
 new Modifier(40, "res/images/add_magnet.png", docer1, 'mod','magnet');
 new Modifier(40, "res/images/add_portal.png", docer1, 'mod','portal');
 new Modifier(40, "res/images/add_random.png", docer1, 'mod','random');
@@ -473,6 +664,7 @@ new Modifier(40, "res/images/base_vector.png", docer1, 'base','vector');
 new Modifier(40, "res/images/add_etheral.png", docer2, 'mod','etheral');
 new Modifier(40, "res/images/add_fake.png", docer2, 'mod','fake');
 new Modifier(40, "res/images/add_fast.png", docer2, 'mod','fast');
+new Modifier(40, "res/images/add_slow.png", docer2, 'mod','slow');
 new Modifier(40, "res/images/add_magnet.png", docer2, 'mod','magnet');
 new Modifier(40, "res/images/add_portal.png", docer2, 'mod','portal');
 new Modifier(40, "res/images/add_random.png", docer2, 'mod','random');
@@ -489,8 +681,8 @@ new Modifier(40, "res/images/base_vector.png", docer2, 'base','vector');
 new Modifier(40, "res/images/hole.png", field, 'hole','red', null, {x: 4, y: 0});
 new Modifier(40, "res/images/hole.png", field, 'hole','green', null,{x: 3, y: 9});
 
-ball = new Ball(field.center.x - 90, field.center.y, 10, "blue", {x: 0, y: 10}, field);
-
+// ball = new Ball(field.center.x - 90, field.center.y, 10, "blue", {x: 0,y: 10}, field);
+ball = new Ball(field.center.x, field.center.y, 10, "blue", {x: 0,y: 10}, field);
 
 
 stage.add(background_layer);
