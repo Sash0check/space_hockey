@@ -455,6 +455,9 @@ class Ball{
                                     }
                                     break;
                             }
+                            mod.graphic.destroy();
+                            cell.slots["mod"] = null;
+                            mods_layer.draw();
                         }
 
 
@@ -543,7 +546,7 @@ class Ball{
         this.graphic.setY(this.pos_y);
     }
     borders(){
-        if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x >= this.field.corners[1].x){
+        if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x + this.radius*2 >= this.field.corners[1].x){
             this.vector.x = this.vector.x * -1;
             // if (this.vector.x < 0)
             //     this.vector.x-=0.05;
@@ -551,7 +554,7 @@ class Ball{
             //     this.vector.x+=0.05;
             // console.log(this.vector.x);
         }
-        if (this.graphic.position().y <= this.field.corners[0].y || this.graphic.position().y >= this.field.corners[1].y){
+        if (this.graphic.position().y <= this.field.corners[0].y || this.graphic.position().y + this.radius*2 >= this.field.corners[1].y){
             this.vector.y = this.vector.y * -1;
             // if (this.vector.x < 0)
             //     this.vector.x-=0.05;
@@ -561,20 +564,43 @@ class Ball{
     }
 
     magic_borders(){
-        let w = this.field.width * this.field.cell_size + (this.field.width + 1) * this.field.padding
-        let h = this.field.height * this.field.cell_size + (this.field.height + 1) * this.field.padding
+        let w = this.field.corners[1].x - this.field.corners[0].x;
+        let h = this.field.corners[1].y - this.field.corners[0].y;
+        // var ad = new Konva.Rect({
+        //     x:this.field.corners[0].x,
+        //     y:this.field.corners[0].y,
+        //     width: w,
+        //     height: h,
+        //     fill: 'red',
+        //     stroke: 'black',
+        //     strokeWidth: 2,
+        //     opacity: 0.5
+        // });
+        // background_layer.add(ad);
+        // background_layer.draw();
+
         // width: this.width * this.cell_size + (this.width + 1) * this.padding,
         //     height: this.height / 2 * this.cell_size + (this.height + 1) / 2 * this.padding,
         let c = 0;
-        if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x >= this.field.corners[1].x){
-            this.graphic.setX(this.graphic.position().x % w);
+        if (this.graphic.position().x < this.field.corners[0].x){
+            this.graphic.setX(this.field.corners[1].x - this.radius*2);
             c++;
         }
-        if (this.graphic.position().y <= this.field.corners[0].y || this.graphic.position().y >= this.field.corners[1].y){
-            this.graphic.setY(this.graphic.position().y % h);
+        if (this.graphic.position().x + this.radius*2 > this.field.corners[1].x){
+            this.graphic.setX(this.field.corners[0].x + this.radius);
             c++;
         }
+        if (this.graphic.position().y < this.field.corners[0].y){
+            this.graphic.setY(this.field.corners[1].y - this.radius*2);
+            c++;
+        }
+        if (this.graphic.position().y + this.radius*2 > this.field.corners[1].y){
+            this.graphic.setY(this.field.corners[0].y + this.radius);
+            c++;
+        }
+
         if (c!=0){
+            // this.anim.stop();
             this.inviz = false;
         }
     }
@@ -713,8 +739,8 @@ new Modifier(40, "res/images/base_vector.png", docer2, 'base','vector');
 new Modifier(40, "res/images/hole.png", field, 'hole','red', null, {x: 4, y: 0});
 new Modifier(40, "res/images/hole.png", field, 'hole','green', null,{x: 3, y: 9});
 
-ball = new Ball(field.center.x - 90, field.center.y, 10, "blue", {x: 0,y: 2}, field);
-// ball = new Ball(field.center.x, field.center.y, 10, "blue", {x: 0,y: 10}, field);
+// ball = new Ball(field.center.x - 90, field.center.y + 10, 10, "blue", {x: -2,y: 0}, field);
+ball = new Ball(field.center.x, field.center.y, 10, "blue", null, field);
 
 
 stage.add(background_layer);
