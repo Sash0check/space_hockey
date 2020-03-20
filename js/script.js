@@ -331,6 +331,10 @@ class Ball{
         this.timer = null;
         this.inviz = false;
         this.inviz_count = 0;
+        this.actions = {"fast" : function(vector){vector.x*=2; vector.y*=2; return vector},
+                        "slow" : function(vector){vector.x/=2; vector.y/=2; return vector},
+                        "vector" : function(vector){vector.y*=-1; return vector},
+                        };
         if (vector != null){
             this.vector = vector;
         }else{
@@ -371,6 +375,33 @@ class Ball{
                         tparent.in_cell = true;
                         let base_result = {type: "vector", vector: {x: 0, y: 0}};
                         let mod_result = {type: "vector", vector: {x: 0, y: 0}};
+                        let temp_vector = {x:tparent.vector.x, y:tparent.vector.y};
+                        switch (base.ability) {
+                            case "etheral":
+                                base_result.type = "no_hit";
+                                break;
+                            case "fast":
+                                tparent.actions.fast(temp_vector);
+                                base_result.func = tparent.actions.fast;
+                                // temp_vector.x *= 2;
+                                // temp_vector.y *= -2;
+                                break;
+                            case "magnet":
+                                break;
+                            case "slow":
+                                tparent.actions.slow(temp_vector);
+                                base_result.func = tparent.actions.slow;
+                                // temp_vector.x /= 2;
+                                // temp_vector.y /= -2;
+                                break;
+                            case "vector":
+                                tparent.actions.vector(temp_vector);
+                                base_result.func = tparent.actions.vector;
+                                // temp_vector.y *= -1;
+                                break;
+                        }
+
+
                         if (mod != null) {
                             // 'etheral' 'fast', 'magnet', 'slow', 'vector'
                             switch (mod.ability) {
@@ -378,20 +409,20 @@ class Ball{
                                     mod_result.type = "no_hit";
                                     break;
                                 case "fast":
-                                    tparent.vector.x *= 2;
-                                    tparent.vector.y *= 2;
+                                    temp_vector.x *= 2;
+                                    temp_vector.y *= 2;
                                     break;
                                 case "magnet":
                                     break;
                                 case "slow":
-                                    tparent.vector.x /= 2;
-                                    tparent.vector.y /= 2;
+                                    temp_vector.x /= 2;
+                                    temp_vector.y /= 2;
                                     break;
                                 case "vector":
-                                    tparent.vector.y *= -1;
+                                    temp_vector.y *= -1;
                                     break;
                                 case "random":
-                                    tparent.vector.y *= -1;
+                                    temp_vector.y *= -1;
                                     break;
 
                                 case "fake":
@@ -416,32 +447,18 @@ class Ball{
                                     tparent.graphic.setY(y);
                                     ball_layer.draw();
                                 case "timer":
-                                    this.timer = {state:false, time: performance.now() / 1000};
+                                    tparent.timer = {state:true, time: performance.now() / 1000};
+                                    console.log(temp_vector);
+                                    console.log(tparent.vector);
+                                    if (base_result.type == "vector"){
+                                        tparent.timer.storage =  base_result.func;
+                                    }
                                     break;
                             }
                         }
 
 
-                        switch (base.ability) {
-                            case "etheral":
-                                base_result.type = "no_hit";
-                                break;
-                            case "fast":
-                                tparent.vector.x *= 2;
-                                tparent.vector.y *= -2;
-                                break;
-                            case "magnet":
-                                tparent.vector.y *= -1;
-                                break;
-                            case "slow":
-                                tparent.vector.x /= 2;
-                                tparent.vector.y /= -2;
-                                break;
-                            case "vector":
-                                tparent.vector.x += 0.5;
-                                tparent.vector.y *= -1;
-                                break;
-                        }
+
                         /// Удар
                         if (base_result.type != "no_hit" && mod_result.type != "no_hit") {
                             let status = base.hit();
@@ -454,8 +471,11 @@ class Ball{
                                 cell.slots["mod"] = null;
                             }
                         }
-
-                        tparent.vector = limit(tparent.vector, 15);
+                        if (tparent.timer != null && tparent.timer.state){
+                            tparent.vector = limit(tparent.vector, 15);
+                        }else{
+                            tparent.vector = limit(temp_vector, 15);
+                        }
                     }else if(mod!= null && mod.ability=="wallbreaker") {
 
                     }else{
@@ -480,6 +500,18 @@ class Ball{
                 counter.update();
             }else{
                 tparent.in_cell = false;
+                if (tparent.timer && tparent.timer.state) {
+
+                    if ((performance.now() / 1000 - tparent.timer.time) > 2) {
+                        if (tparent.timer.storage != null){
+                            console.log("start " + tparent.timer.time + " end " + performance.now() / 1000);
+                            console.log((performance.now() / 1000 - tparent.timer.time));
+                            tparent.timer.storage(tparent.vector);
+                            tparent.timer = null;
+                        }
+                    }
+
+                }
             }
             if (!tparent.inviz){
                 tparent.borders();
@@ -513,18 +545,18 @@ class Ball{
     borders(){
         if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x >= this.field.corners[1].x){
             this.vector.x = this.vector.x * -1;
-            if (this.vector.x < 0)
-                this.vector.x-=0.05;
-            else
-                this.vector.x+=0.05;
+            // if (this.vector.x < 0)
+            //     this.vector.x-=0.05;
+            // else
+            //     this.vector.x+=0.05;
             // console.log(this.vector.x);
         }
         if (this.graphic.position().y <= this.field.corners[0].y || this.graphic.position().y >= this.field.corners[1].y){
             this.vector.y = this.vector.y * -1;
-            if (this.vector.x < 0)
-                this.vector.x-=0.05;
-            else
-                this.vector.x+=0.05;
+            // if (this.vector.x < 0)
+            //     this.vector.x-=0.05;
+            // else
+            //     this.vector.x+=0.05;
         }
     }
 
@@ -681,8 +713,8 @@ new Modifier(40, "res/images/base_vector.png", docer2, 'base','vector');
 new Modifier(40, "res/images/hole.png", field, 'hole','red', null, {x: 4, y: 0});
 new Modifier(40, "res/images/hole.png", field, 'hole','green', null,{x: 3, y: 9});
 
-// ball = new Ball(field.center.x - 90, field.center.y, 10, "blue", {x: 0,y: 10}, field);
-ball = new Ball(field.center.x, field.center.y, 10, "blue", {x: 0,y: 10}, field);
+ball = new Ball(field.center.x - 90, field.center.y, 10, "blue", {x: 0,y: 2}, field);
+// ball = new Ball(field.center.x, field.center.y, 10, "blue", {x: 0,y: 10}, field);
 
 
 stage.add(background_layer);
