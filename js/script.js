@@ -4,6 +4,63 @@ let stage = new Konva.Stage({
     height: 900
 });
 
+let docer1;
+let docer2;
+let ball;
+let button;
+
+class RoundSystem{
+    constructor() {
+        this.counter = 1;
+        this.hits = 10;
+        this.text = new Konva.Text({
+            x: 10,
+            y: 260,
+            text: "Round  - " + this.counter,
+            fontSize: 64,
+            fontFamily: 'Calibri',
+            fill: 'black'
+        });
+        this.text2 = new Konva.Text({
+            x: 10,
+            y: 340,
+            text: "Hits  - " + this.hits,
+            fontSize: 36,
+            fontFamily: 'Calibri',
+            fill: 'black'
+        });
+        background_layer.add(this.text);
+        background_layer.add(this.text2);
+    }
+
+    new_round(){
+        this.hits = 10;
+        this.counter++;
+        this.update();
+        button.setAttrs({
+            text: "Start",
+            state: false
+        });
+
+        ball.anim.stop();
+        ball.respawn();
+        docer1.respawn();
+        docer2.respawn();
+        background_layer.draw();
+    }
+
+    update(){
+        this.text.setAttrs({
+            text: "Round  - " + this.counter,
+        });
+        this.text2.setAttrs({
+            text: "Hits  - " + this.hits,
+        });
+        background_layer.draw();
+    }
+
+}
+
 let max_speed = 5;
 let min_speed = -5;
 
@@ -32,6 +89,8 @@ instuctions.src = "res/images/figure_mods.png";
 function randomInt(min, max) {
     return min + Math.floor((max - min) * Math.random());
 }
+
+round_counter = new RoundSystem();
 
 class Counter {
     constructor(x, y) {
@@ -219,9 +278,15 @@ class Modifier {
         this.imageObj.src = img_name;
     }
     hit(){
+        round_counter.hits--;
+        if (round_counter.hits == 0){
+            round_counter.new_round();
+            return ;
+        }
+        round_counter.update();
         this.life--;
         if (this.life == 0){
-            this.graphic.destroy();
+            this.graphic.remove();
             bases_layer.draw();
             return "dead";
         }
@@ -240,7 +305,7 @@ class Docer {
         this.cell_size = cell_size;
         this.padding = padding;
         this.bacground_color = color;
-        this.prototypes = [];
+        this.mods = [];
         this.init();
     }
 
@@ -265,6 +330,7 @@ class Docer {
         }
     }
     push(mod){
+        this.mods.push(mod);
         top:
         for (let j = 0; j < this.cells[0].length; j++){
             for (let i = 0; i < this.cells.length; i++){
@@ -285,6 +351,42 @@ class Docer {
             bases_layer.draw();
         }
 
+    }
+    clear(){
+        for (var mod in this.mods){
+            this.mods[mod].graphic.remove();
+        }
+        for (let j = 0; j < this.cells[0].length; j++) {
+            for (let i = 0; i < this.cells.length; i++) {
+                let cell = this.cells[i][j];
+                    cell.slots["mod"] = {};
+            }
+        }
+    }
+    respawn(){
+        this.clear();
+        let c = 0;
+        top:
+        for (let j = 0; j < this.cells[0].length; j++) {
+            for (let i = 0; i < this.cells.length; i++) {
+                let cell = this.cells[i][j];
+                let mod = this.mods[c];
+                if (mod == null)
+                    break top;
+                mod.graphic.setX(cell.graphic.position().x);
+                mod.graphic.setY(cell.graphic.position().y);
+                cell.slots[mod.type] = mod;
+                mod.life = 5;
+                if (mod.type == "mod"){
+                    mods_layer.add(mod.graphic);
+                }else if (mod.type == "base"){
+                    bases_layer.add(mod.graphic);
+                }
+                c++;
+            }
+        }
+        bases_layer.draw();
+        mods_layer.draw();
     }
 }
 // def mag(self):
@@ -455,7 +557,7 @@ class Ball{
                                     }
                                     break;
                             }
-                            mod.graphic.destroy();
+                            mod.graphic.remove();
                             cell.slots["mod"] = null;
                             mods_layer.draw();
                         }
@@ -467,7 +569,7 @@ class Ball{
                             let status = base.hit();
                             if (status == "dead") {
                                 if (mod != null) {
-                                    mod.graphic.destroy();
+                                    mod.graphic.remove();
                                     mods_layer.draw();
                                 }
                                 cell.slots["base"] = null;
@@ -544,6 +646,7 @@ class Ball{
         this.random_vector();
         this.graphic.setX(this.pos_x);
         this.graphic.setY(this.pos_y);
+        ball_layer.draw();
     }
     borders(){
         if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x + this.radius*2 >= this.field.corners[1].x){
@@ -698,8 +801,10 @@ background_layer.add(button);
 
 let field = new Field(320,40,8, 10, 40, 12, ['green', 'red']);
 
-let docer1 = new Docer(40,40,5, 4, 40, 12, 'green');
-let docer2 = new Docer(760,450,5, 4, 40, 12, 'red');
+docer1 = new Docer(40,40,5, 4, 40, 12, 'green');
+docer2 = new Docer(760,450,5, 4, 40, 12, 'red');
+
+
 
 new Modifier(40, "res/images/add_etheral.png", docer1, 'mod','etheral');
 new Modifier(40, "res/images/add_fake.png", docer1, 'mod','fake');
