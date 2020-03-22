@@ -41,12 +41,12 @@ class RoundSystem{
             text: "Start",
             state: false
         });
-        field.clear();
+        // field.clear();
 
         ball.anim.stop();
         ball.respawn();
-        docer1.respawn();
-        docer2.respawn();
+        // docer1.respawn();
+        // docer2.respawn();
         background_layer.draw();
     }
 
