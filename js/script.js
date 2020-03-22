@@ -284,7 +284,7 @@ class Modifier {
             return ;
         }
         round_counter.update();
-        this.life--;
+        // this.life--;
         if (this.life == 0){
             this.graphic.remove();
             bases_layer.draw();
@@ -433,8 +433,8 @@ class Ball{
         this.timer = null;
         this.inviz = false;
         this.inviz_count = 0;
-        this.actions = {"fast" : function(vector){vector.x*=2; vector.y*=2; return vector},
-                        "slow" : function(vector){vector.x/=2; vector.y/=2; return vector},
+        this.actions = {"fast" : function(vector){vector.x*=2; vector.y*=-2; return vector},
+                        "slow" : function(vector){vector.x/=2; vector.y/=-2; return vector},
                         "vector" : function(vector){vector.y*=-1; return vector},
                         };
         if (vector != null){
@@ -442,6 +442,7 @@ class Ball{
         }else{
             this.random_vector();
         }
+        this.default_vector = {x: this.vector.x, y: this.vector.y};
 
         this.field = field;
         let tparent = this;
@@ -477,7 +478,11 @@ class Ball{
                         tparent.in_cell = true;
                         let base_result = {type: "vector", vector: {x: 0, y: 0}};
                         let mod_result = {type: "vector", vector: {x: 0, y: 0}};
+                        tparent.vector = {x: tparent.default_vector.x, y:tparent.default_vector.y};
                         let temp_vector = {x:tparent.vector.x, y:tparent.vector.y};
+                        // if (base.ability!=""){
+                        //
+                        // }
                         switch (base.ability) {
                             case "etheral":
                                 base_result.type = "no_hit";
@@ -557,9 +562,9 @@ class Ball{
                                     }
                                     break;
                             }
-                            mod.graphic.remove();
-                            cell.slots["mod"] = null;
-                            mods_layer.draw();
+                            // mod.graphic.remove();
+                            // cell.slots["mod"] = null;
+                            // mods_layer.draw();
                         }
 
 
