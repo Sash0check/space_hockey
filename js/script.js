@@ -606,6 +606,8 @@ class Ball{
                     counter.red++;
                 else
                     counter.green++;
+                round_counter.new_round();
+                round_counter.update();
                 tparent.respawn();
                 counter.update();
             }else{
