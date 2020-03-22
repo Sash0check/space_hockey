@@ -41,6 +41,7 @@ class RoundSystem{
             text: "Start",
             state: false
         });
+        field.clear();
 
         ball.anim.stop();
         ball.respawn();
@@ -230,6 +231,14 @@ class Field {
                 let y = this.pos_y + j * this.cell_size + this.padding * j;
                 this.cells[i].push(new Cell(x, y, this.cell_size, '#337DFF'));
                 cells_layer.add(this.cells[i][j].graphic);
+            }
+        }
+    }
+    clear(){
+        for (let i = 0; i < this.width; i++){
+            for (let j = 0; j < this.height; j++) {
+                this.cells[i][j].slots["mod"] = null;
+                this.cells[i][j].slots["base"] = null;
             }
         }
     }
@@ -445,6 +454,7 @@ class Ball{
         this.default_vector = {x: this.vector.x, y: this.vector.y};
 
         this.field = field;
+        this.in_fly = false;
         let tparent = this;
         this.graphic = new Konva.Circle({
             x: pos_x,
@@ -480,6 +490,15 @@ class Ball{
                         let mod_result = {type: "vector", vector: {x: 0, y: 0}};
                         tparent.vector = {x: tparent.default_vector.x, y:tparent.default_vector.y};
                         let temp_vector = {x:tparent.vector.x, y:tparent.vector.y};
+
+                        let probability = randomInt(1, 100);
+                        if (probability <= 15){
+                            probability = true;
+                            console.log("START");
+                        }
+                        else{
+                            probability = false;
+                        }
                         // if (base.ability!=""){
                         //
                         // }
@@ -562,12 +581,21 @@ class Ball{
                                     }
                                     break;
                             }
+
                             // mod.graphic.remove();
                             // cell.slots["mod"] = null;
                             // mods_layer.draw();
                         }
 
-
+                        if (probability){
+                            tparent.inviz_count = 0;
+                            tparent.inviz = true;
+                            tparent.graphic.setAttrs({
+                                radius: tparent.radius * 1.5,
+                                fill: "#4E63FF"
+                            });
+                            // ball_layer.draw();
+                        }
 
                         /// Удар
                         if (base_result.type != "no_hit" && mod_result.type != "no_hit") {
@@ -597,6 +625,10 @@ class Ball{
 
                     if (tparent.inviz_count == 1){
                         tparent.inviz = false;
+                        tparent.graphic.setAttrs({
+                            radius: tparent.radius,
+                            fill: tparent.color
+                        });
                         console.log("off");
                     }
                 }
@@ -653,6 +685,10 @@ class Ball{
         this.random_vector();
         this.graphic.setX(this.pos_x);
         this.graphic.setY(this.pos_y);
+        this.graphic.setAttrs({
+            radius: this.radius,
+            fill: this.color
+        });
         ball_layer.draw();
     }
     borders(){
