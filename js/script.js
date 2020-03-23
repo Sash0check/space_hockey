@@ -11,7 +11,7 @@ let button;
 
 class RoundSystem{
     constructor() {
-        this.counter = 1;
+        this.counter = 0;
         this.hits = 10;
         this.text = new Konva.Text({
             x: 10,
@@ -29,6 +29,7 @@ class RoundSystem{
             fontFamily: 'Calibri',
             fill: 'black'
         });
+
         background_layer.add(this.text);
         background_layer.add(this.text2);
     }
@@ -37,16 +38,19 @@ class RoundSystem{
         this.hits = 10;
         this.counter++;
         this.update();
+
         button.setAttrs({
             text: "Start",
             state: false
         });
+
+
         // field.clear();
 
         ball.anim.stop();
         ball.respawn();
-        // docer1.respawn();
-        // docer2.respawn();
+        ball.draw_vector();
+        ball_layer.draw();
         background_layer.draw();
     }
 
@@ -72,19 +76,6 @@ let bases_layer = new Konva.Layer();
 let mods_layer = new Konva.Layer();
 let ball_layer = new Konva.Layer();
 
-let instuctions = new Image();
-instuctions.onload = function() {
-    let graphic = new Konva.Image({
-        x: 750,
-        y: 40,
-        image: instuctions,
-        width: 700,
-        height: 400,
-    });
-    background_layer.add(graphic);
-    background_layer.draw();
-};
-instuctions.src = "res/images/figure_mods.png";
 
 
 function randomInt(min, max) {
@@ -154,7 +145,6 @@ class Counter {
 }
 
 class Cell {
-
     constructor(x, y, size, color) {
         let tparent = this;
         this.graphic = new Konva.Rect({
@@ -186,6 +176,8 @@ class Field {
         this.pos_y = pos_y;
         this.width = width;
         this.height = height;
+        this.nominal_width = this.width * this.cell_size + (this.width + 1) * this.padding;
+        this.nominal_height = this.height * this.cell_size + (this.height + 1) * this.padding;
         this.cell_size = cell_size;
         this.padding = padding;
         this.bacground_colors = colors;
@@ -246,13 +238,15 @@ class Field {
 
 class Modifier {
 
-    constructor(size, img_name, docer, type, ability, value, coords) {
+    constructor(size, img_name, docer, type, ability, is_long, coords) {
         this.imageObj = new Image();
         this.graphic = null;
         this.type = type;
-        this.value = value;
+        this.is_long = is_long;
         this.ability = ability;
         this.life = 5;
+        this.rotation = 1;
+        this.rotation_storage = null;
         let tparent = this;
         this.imageObj.onload = function() {
             let graphic = new Konva.Image({
@@ -286,20 +280,28 @@ class Modifier {
         };
         this.imageObj.src = img_name;
     }
+    // hit(){
+    //     round_counter.hits--;
+    //     if (round_counter.hits == 0){
+    //         round_counter.new_round();
+    //         return ;
+    //     }
+    //     round_counter.update();
+    //     // this.life--;
+    //     if (this.life == 0){
+    //         this.graphic.remove();
+    //         bases_layer.draw();
+    //         return "dead";
+    //     }
+    //     return "alive";
+    // }
     hit(){
         round_counter.hits--;
         if (round_counter.hits == 0){
             round_counter.new_round();
-            return ;
+            return "stop";
         }
         round_counter.update();
-        // this.life--;
-        if (this.life == 0){
-            this.graphic.remove();
-            bases_layer.draw();
-            return "dead";
-        }
-        return "alive";
     }
 
 }
@@ -398,19 +400,6 @@ class Docer {
         mods_layer.draw();
     }
 }
-// def mag(self):
-//     return (self.x * self.x + self.y * self.y) ** 0.5
-//
-// def norm(self):
-//     m = self.mag()
-//     if (m > 0):
-//         self /= m
-//
-// def limit(self, max_value):
-//     if self.mag() > max_value:
-//         self.norm()
-//         self.mul(max_value)
-
 function mag(vector) {
     return (vector.x * vector.x + vector.y * vector.y) ** 0.5
 }
@@ -433,321 +422,272 @@ function limit(vector, lim) {
 }
 
 class Ball{
-    constructor(pos_x, pos_y, radius, color, vector, field) {
+    constructor(pos_x, pos_y, radius, color, speed, vector, field) {
         this.pos_x = pos_x;
         this.pos_y = pos_y;
         this.radius = radius;
         this.color = color;
-        this.in_cell = false;
-        this.timer = null;
-        this.inviz = false;
-        this.inviz_count = 0;
-        this.actions = {"fast" : function(vector){vector.x*=2; vector.y*=-2; return vector},
-                        "slow" : function(vector){vector.x/=2; vector.y/=-2; return vector},
-                        "vector" : function(vector){vector.y*=-1; return vector},
-                        };
+        this.speed = speed;
+        this.last_cell = null;
+        let tparent = this;
+
+        this.actions = {
+            "etheral" : function(vector, angle){
+                if ((angle >= 45 && angle <= 135) || (angle >= 225 && angle <= 315)){
+                    vector.x*=-1;
+                }else{
+                    vector.y*=-1;
+                }
+            },
+            "straight" : function(vector, angle){
+                angle = Math.round(angle);
+                if (angle > 45 && angle < 135){
+                    vector.x = 0;
+                    vector.y = -tparent.speed;
+                }else if (angle > 225 && angle < 315){
+                    vector.x = 0;
+                    vector.y = tparent.speed;
+                }else if (angle > 135 && angle < 225){
+                    vector.x = -tparent.speed;
+                    vector.y = 0;
+                }else if ((angle > 0 && angle < 45) || (angle > 315 && angle < 0)){
+                    vector.x = tparent.speed;
+                    vector.y = 0;
+                }else{
+                    vector.x *=-1;
+                    vector.y *=-1;
+                }
+                return vector;
+            },
+            "mirror" : function(vector){vector.x*=-1; vector.y*=-1; return vector},
+            "normal" : function(vector, angle){
+                angle = Math.round(angle);
+                if ((angle > 45 && angle < 135) || (angle > 225 && angle < 315)){
+                    vector.y*=-1;
+                }else if(angle > 135 && angle < 225 || (angle > 0 && angle < 45) || (angle > 315 && angle < 0)){
+                    vector.x*=-1;
+                }else{
+                    vector.x *=-1;
+                    vector.y *=-1;
+                }
+                return vector
+            },
+            "rotating" : function(vector, angle, rotation, cell){
+                console.log(cell);
+                tparent.graphic.setX(cell.graphic.getX() + cell.graphic.getWidth());
+                tparent.graphic.setX(cell.graphic.getY() + cell.graphic.getHeight());
+                vector.x = Math.abs(vector.x);
+                vector.y = Math.abs(vector.y);
+                console.log(vector);
+                if (rotation == 1){
+                    vector.y *= -1;
+                }else if (rotation == 2){
+
+                }else if (rotation == 3){
+                    vector.x *=-1;
+                }else if (rotation == 4){
+                    vector.x *=-1;
+                    vector.y *=-1;
+                }
+                return vector
+            },
+        };
         if (vector != null){
             this.vector = vector;
         }else{
-            this.random_vector();
+            this.vector = this.random_vector();
         }
         this.default_vector = {x: this.vector.x, y: this.vector.y};
 
         this.field = field;
         this.in_fly = false;
-        let tparent = this;
         this.graphic = new Konva.Circle({
             x: pos_x,
             y: pos_y,
             radius: radius,
             fill: color,
-            stroke: 'black',
-            strokeWidth: 4,
+            // stroke: 'black',
+            // strokeWidth: 4,
             parent_class: tparent
         });
+
         ball_layer.add(this.graphic);
         tparent.anim = new Konva.Animation(function(frame) {
-            var pos = {x: tparent.graphic.position().x + tparent.radius, y: tparent.graphic.position().y + tparent.radius};
+            let pos = tparent.graphic.getPosition();
             let cell = cells_layer.getIntersection(pos);
             let base = null;
             let mod = null;
             let hole = null;
+
+            let extra_pos = [
+                {x: pos.x + tparent.graphic.getRadius(), y: pos.y},
+                {x: pos.x, y: pos.y + tparent.graphic.getRadius()},
+                {x: pos.x - tparent.graphic.getRadius(), y: pos.y},
+                {x: pos.x, y: pos.y - tparent.graphic.getRadius()}
+            ];
+
+            if (cell==null || base == null){
+                for (let i = 0; i < extra_pos.length; i++){
+                    cell = cells_layer.getIntersection(extra_pos[i]);
+                    if (cell!= null){
+                        let temp_cell = cell.attrs.parent_class;
+                        base = temp_cell.slots["base"];
+                        mod = temp_cell.slots["mod"];
+                        hole = temp_cell.slots["hole"];
+                        if (base!= null || hole != null){
+                            break;
+                        }
+                    }
+                }
+            }
+
             if (cell != null){
                 cell = cell.attrs.parent_class;
                 base = cell.slots["base"];
                 mod = cell.slots["mod"];
                 hole = cell.slots["hole"];
-            }
-            // if (shape!=null){
-            //     shape.attrs.fill = "black";
-            //     cells_layer.draw();
-            // }
-            if (base != null){
-                if (!tparent.in_cell) {
-                    if (!tparent.inviz) {
-                        tparent.in_cell = true;
-                        let base_result = {type: "vector", vector: {x: 0, y: 0}};
-                        let mod_result = {type: "vector", vector: {x: 0, y: 0}};
-                        tparent.vector = {x: tparent.default_vector.x, y:tparent.default_vector.y};
-                        let temp_vector = {x:tparent.vector.x, y:tparent.vector.y};
+                if (cell != tparent.last_cell){
+                    if (base != null){
+                        if (tparent.in_fly && base.is_long){
+                            tparent.make_ground();
+                            tparent.in_fly = false;
+                            if (base.hit() == "stop")
+                                return;
+                        }else if(tparent.in_fly && !base.is_long){
 
-                        let probability = randomInt(1, 100);
-                        if (probability <= 15){
-                            probability = true;
-                            console.log("START");
-                        }
-                        else{
-                            probability = false;
-                        }
-                        // if (base.ability!=""){
-                        //
-                        // }
-                        switch (base.ability) {
-                            case "etheral":
-                                base_result.type = "no_hit";
-                                break;
-                            case "fast":
-                                tparent.actions.fast(temp_vector);
-                                base_result.func = tparent.actions.fast;
-                                // temp_vector.x *= 2;
-                                // temp_vector.y *= -2;
-                                break;
-                            case "magnet":
-                                break;
-                            case "slow":
-                                tparent.actions.slow(temp_vector);
-                                base_result.func = tparent.actions.slow;
-                                // temp_vector.x /= 2;
-                                // temp_vector.y /= -2;
-                                break;
-                            case "vector":
-                                tparent.actions.vector(temp_vector);
-                                base_result.func = tparent.actions.vector;
-                                // temp_vector.y *= -1;
-                                break;
-                        }
-
-
-                        if (mod != null) {
-                            // 'etheral' 'fast', 'magnet', 'slow', 'vector'
-                            switch (mod.ability) {
-                                case "etheral":
-                                    mod_result.type = "no_hit";
-                                    break;
-                                case "fast":
-                                    temp_vector.x *= 2;
-                                    temp_vector.y *= 2;
-                                    break;
-                                case "magnet":
-                                    break;
-                                case "slow":
-                                    temp_vector.x /= 2;
-                                    temp_vector.y /= 2;
-                                    break;
-                                case "vector":
-                                    temp_vector.y *= -1;
-                                    break;
-                                case "random":
-                                    temp_vector.y *= -1;
-                                    break;
-
-                                case "fake":
-                                    break;
-                                case "wallbreaker":
-                                    console.log("on");
-                                    tparent.inviz_count = 0;
-                                    tparent.inviz = true;
-                                    break;
-                                case "portal":
-                                    let x = null;
-                                    let y = null;
-                                    if (tparent.graphic.position().y > tparent.field.center.y){
-                                        x = randomInt(tparent.field.corners[0].x, tparent.field.corners[1].x);
-                                        y = randomInt(tparent.field.pos_y, tparent.field.center.y);
-                                    }else{
-                                        x = randomInt(tparent.field.corners[0].x, tparent.field.corners[1].x);
-                                        y = randomInt(tparent.field.center.y, tparent.field.corners[1].y);
-                                    }
-                                    tparent.in_cell = false;
-                                    tparent.graphic.setX(x);
-                                    tparent.graphic.setY(y);
-                                    ball_layer.draw();
-                                case "timer":
-                                    tparent.timer = {state:true, time: performance.now() / 1000};
-                                    console.log(temp_vector);
-                                    console.log(tparent.vector);
-                                    if (base_result.type == "vector"){
-                                        tparent.timer.storage =  base_result.func;
-                                    }
-                                    break;
-                            }
-
-                            // mod.graphic.remove();
-                            // cell.slots["mod"] = null;
-                            // mods_layer.draw();
-                        }
-
-                        if (probability){
-                            tparent.inviz_count = 0;
-                            tparent.inviz = true;
-                            tparent.graphic.setAttrs({
-                                radius: tparent.radius * 1.5,
-                                fill: "#4E63FF"
-                            });
-                            // ball_layer.draw();
-                        }
-
-                        /// Удар
-                        if (base_result.type != "no_hit" && mod_result.type != "no_hit") {
-                            let status = base.hit();
-                            if (status == "dead") {
-                                if (mod != null) {
-                                    mod.graphic.remove();
-                                    mods_layer.draw();
-                                }
-                                cell.slots["base"] = null;
-                                cell.slots["mod"] = null;
-                            }
-                        }
-                        if (tparent.timer != null && tparent.timer.state){
-                            tparent.vector = limit(tparent.vector, 15);
                         }else{
-                            tparent.vector = limit(temp_vector, 15);
+                            let probability = randomInt(1, 100);
+                            if (probability <= 15) {
+                                tparent.in_fly = true;
+                            }
+                            let angle = tparent.get_angle(pos, cell);
+                            if (mod != null) {
+                                tparent.actions[mod.ability](tparent.vector, angle, mod.rotation, cell);
+                            } else {
+                                tparent.actions["normal"](tparent.vector, angle);
+                            }
+                            if (base.hit() == "stop")
+                                return;
                         }
-                    }else if(mod!= null && mod.ability=="wallbreaker") {
 
-                    }else{
-                        tparent.in_cell = true;
-                        tparent.inviz_count++;
-                        // console.log(tparent.inviz_count);
-                    }
-
-
-                    if (tparent.inviz_count == 1){
-                        tparent.inviz = false;
-                        tparent.graphic.setAttrs({
-                            radius: tparent.radius,
-                            fill: tparent.color
-                        });
-                        console.log("off");
                     }
                 }
+                tparent.last_cell = cell;
+            }
 
-            }else if(hole != null){
+
+            if(hole != null){
                 if (hole.ability == "red")
                     counter.red++;
                 else
                     counter.green++;
+                tparent.make_ground();
+                tparent.in_fly = false;
                 round_counter.new_round();
-                round_counter.update();
-                tparent.respawn();
                 counter.update();
-            }else{
-                tparent.in_cell = false;
-                if (tparent.timer && tparent.timer.state) {
-
-                    if ((performance.now() / 1000 - tparent.timer.time) > 2) {
-                        if (tparent.timer.storage != null){
-                            console.log("start " + tparent.timer.time + " end " + performance.now() / 1000);
-                            console.log((performance.now() / 1000 - tparent.timer.time));
-                            tparent.timer.storage(tparent.vector);
-                            tparent.timer = null;
-                        }
-                    }
-
-                }
-            }
-            if (!tparent.inviz){
-                tparent.borders();
-            }else{
-                tparent.magic_borders();
+                return;
             }
 
-            tparent.graphic.x(
-                tparent.graphic.position().x + tparent.vector.x,
-        );
-            tparent.graphic.y(
-                tparent.graphic.position().y + tparent.vector.y,
-            );
+            if (tparent.in_fly){
+                tparent.make_fly();
+            }else{
+                tparent.make_ground();
+            }
+
+            tparent.graphic.setAttrs({
+                x: pos.x + tparent.vector.x,
+                y: pos.y + tparent.vector.y
+            });
+            tparent.borders();
+
         }, ball_layer);
-        // tparent.anim.start();
     }
-    random_vector(){
-        let x = randomInt(min_speed, max_speed);
-        let y = randomInt(min_speed, max_speed);
-        while (x==0 || y==0){
-            x = randomInt(min_speed, max_speed);
-            y = randomInt(min_speed, max_speed);
-        }
-        this.vector = {x: x, y: y};
+    make_fly(){
+        this.graphic.setAttrs({
+            radius: this.radius * 1.5,
+            fill: "#4E63FF"
+        });
+        ball_layer.draw();
     }
-    respawn(){
-        this.random_vector();
-        this.graphic.setX(this.pos_x);
-        this.graphic.setY(this.pos_y);
+    make_ground(){
         this.graphic.setAttrs({
             radius: this.radius,
             fill: this.color
         });
         ball_layer.draw();
     }
-    borders(){
-        if (this.graphic.position().x <= this.field.corners[0].x || this.graphic.position().x + this.radius*2 >= this.field.corners[1].x){
-            this.vector.x = this.vector.x * -1;
-            // if (this.vector.x < 0)
-            //     this.vector.x-=0.05;
-            // else
-            //     this.vector.x+=0.05;
-            // console.log(this.vector.x);
-        }
-        if (this.graphic.position().y <= this.field.corners[0].y || this.graphic.position().y + this.radius*2 >= this.field.corners[1].y){
-            this.vector.y = this.vector.y * -1;
-            // if (this.vector.x < 0)
-            //     this.vector.x-=0.05;
-            // else
-            //     this.vector.x+=0.05;
-        }
+
+    get_angle(p1, cell){
+        // this.anim.stop();
+        let p2 = cell.graphic.getPosition();
+        p2.x += cell.graphic.getWidth() / 2;
+        p2.y += cell.graphic.getHeight() / 2;
+        // var redLine = new Konva.Line({
+        //     points: [p1.x, p1.y, p2.x, p2.y],
+        //     stroke: 'black',
+        //     strokeWidth: 1,
+        //     lineCap: 'round',
+        //     lineJoin: 'round'
+        // });
+        // ball_layer.add(redLine);
+        // ball_layer.draw();
+        let dy = p2.y - p1.y;
+        let dx = p2.x - p1.x;
+        let angleDeg = Math.atan2(-dy, -dx) * 180 / Math.PI;
+        angleDeg *= -1 ;
+        if (angleDeg < 0) angleDeg = 360 + angleDeg;
+        return angleDeg;
+    }
+    random_vector(){
+        let z = this.speed * this.speed;
+        let factor = z / 2;
+        let x = factor ** 0.5;
+        let y = factor ** 0.5;
+        if (Math.random() > 0.5)
+            x = -x;
+        if (Math.random() > 0.5)
+            y = -y;
+        return {x: x, y: y}
     }
 
-    magic_borders(){
-        let w = this.field.corners[1].x - this.field.corners[0].x;
-        let h = this.field.corners[1].y - this.field.corners[0].y;
-        // var ad = new Konva.Rect({
-        //     x:this.field.corners[0].x,
-        //     y:this.field.corners[0].y,
-        //     width: w,
-        //     height: h,
-        //     fill: 'red',
-        //     stroke: 'black',
-        //     strokeWidth: 2,
-        //     opacity: 0.5
-        // });
-        // background_layer.add(ad);
-        // background_layer.draw();
-
-        // width: this.width * this.cell_size + (this.width + 1) * this.padding,
-        //     height: this.height / 2 * this.cell_size + (this.height + 1) / 2 * this.padding,
-        let c = 0;
-        if (this.graphic.position().x < this.field.corners[0].x){
-            this.graphic.setX(this.field.corners[1].x - this.radius*2);
-            c++;
+    respawn(){
+        this.vector = this.random_vector();
+        this.graphic.setAttrs({
+            x: this.pos_x,
+            y: this.pos_y,
+            radius: this.radius,
+            fill: this.color
+        });
+        ball_layer.draw();
+    }
+    borders(){
+        if (this.graphic.position().x - this.graphic.getRadius() <= this.field.corners[0].x || this.graphic.position().x + this.graphic.getRadius() >= this.field.corners[1].x){
+            this.vector.x = this.vector.x * -1;
         }
-        if (this.graphic.position().x + this.radius*2 > this.field.corners[1].x){
-            this.graphic.setX(this.field.corners[0].x + this.radius);
-            c++;
+        if (this.graphic.position().y - this.graphic.getRadius() <= this.field.corners[0].y || this.graphic.position().y + this.graphic.getRadius() >= this.field.corners[1].y){
+            this.vector.y = this.vector.y * -1;
         }
-        if (this.graphic.position().y < this.field.corners[0].y){
-            this.graphic.setY(this.field.corners[1].y - this.radius*2);
-            c++;
-        }
-        if (this.graphic.position().y + this.radius*2 > this.field.corners[1].y){
-            this.graphic.setY(this.field.corners[0].y + this.radius);
-            c++;
-        }
-
-        if (c!=0){
-            // this.anim.stop();
-            this.inviz = false;
+    }
+    draw_vector(){
+        this.arrow = new Konva.Arrow({
+            pointerLength: 4,
+            pointerWidth: 4,
+            fill: 'black',
+            stroke: 'black',
+            strokeWidth: 4
+        });
+        this.arrow.setAttrs({
+            x: this.graphic.getPosition().x,
+            y: this.graphic.getPosition().y,
+            points: [0, 0, ball.vector.x * 10, ball.vector.y * 10]
+        });
+        ball_layer.add(this.arrow);
+        ball_layer.draw();
+    }
+    wipe_vector(){
+        if (this.arrow != null){
+            this.arrow.remove();
+            ball_layer.draw();
         }
     }
 }
@@ -755,6 +695,18 @@ class Ball{
 // stage.on('mousemove', function(evt) {
 //     var pos = stage.getPointerPosition();
 //     console.log(pos);
+//
+// });
+
+// stage.on('click', function(evt) {
+//     var pos = stage.getPointerPosition();
+//     var shape = cells_layer.getIntersection(pos);
+//     if (shape!=null){
+//         console.log(shape);
+//         if (shape.attrs.parent_class!=null){
+//             console.log(shape.attrs.parent_class);
+//         }
+//     }
 // });
 
 counter = new Counter(300, 600);
@@ -763,7 +715,8 @@ last_place = null;
 stage.on('dragstart', function(evt) {
     var pos = stage.getPointerPosition();
     var shape = cells_layer.getIntersection(pos);
-    last_place = shape.attrs.parent_class;
+    if (shape)
+        last_place = shape.attrs.parent_class;
     // console.log("start");
 });
 
@@ -777,25 +730,29 @@ stage.on('dragend', function(evt) {
 
         let type = evt.target.attrs.parent_class.type;
         if (cell != null && cell.attrs.parent_class.slots[type] == null) {
-            //если место свободно то ставить
-            cell = cell.attrs.parent_class;
-            let ability1 = evt.target.attrs.parent_class.ability;
-            let ability2 = null;
-            if (cell.slots['mod'] != null){
-                ability2 = cell.slots['mod'].ability;
-            }else if (cell.slots['base'] != null){
-                ability2 = cell.slots['base'].ability;
-            }
-            if (ability1 == ability2){
+            if (evt.target.attrs.parent_class.type == "mod" && base!=null && base.attrs.parent_class.is_long){
                 return_to_place();
-            }else {
-                evt.target.setX(cell.graphic.position().x);
-                evt.target.setY(cell.graphic.position().y);
-                last_place.slots[type] = null;
-                cell.slots[type] = evt.target.attrs.parent_class;
-                bases_layer.draw();
-                mods_layer.draw();
-                last_place = null;
+            }else{
+                //если место свободно то ставить
+                cell = cell.attrs.parent_class;
+                let ability1 = evt.target.attrs.parent_class.ability;
+                let ability2 = null;
+                if (cell.slots['mod'] != null) {
+                    ability2 = cell.slots['mod'].ability;
+                } else if (cell.slots['base'] != null) {
+                    ability2 = cell.slots['base'].ability;
+                }
+                if (ability1 == ability2) {
+                    return_to_place();
+                } else {
+                    evt.target.setX(cell.graphic.position().x);
+                    evt.target.setY(cell.graphic.position().y);
+                    last_place.slots[type] = null;
+                    cell.slots[type] = evt.target.attrs.parent_class;
+                    bases_layer.draw();
+                    mods_layer.draw();
+                    last_place = null;
+                }
             }
         } else {
             // если место занято то вернуть на место
@@ -808,6 +765,45 @@ stage.on('dragend', function(evt) {
         last_place = null;
         bases_layer.draw();
         mods_layer.draw();
+    }
+});
+
+stage.on('contextmenu', function(e) {
+    e.evt.preventDefault();
+    var pos = stage.getPointerPosition();
+    var mod = mods_layer.getIntersection(pos);
+    if (mod != null){
+        mod = mod.attrs.parent_class;
+        if (mod.ability == "rotating"){
+            if (mod.rotation == 1){
+                mod.graphic.setAttrs({
+                    x: mod.graphic.getX() + mod.graphic.width() / 2,
+                    y: mod.graphic.getY() + mod.graphic.height() / 2,
+                });
+            }
+            mod.rotation++;
+            // mod.graphic.setAttrs({
+            //     x: mod.graphic.getX() + mod.graphic.width() / 2 ,
+            //     y: mod.graphic.getY() + mod.graphic.height() / 2 ,
+            // });
+
+            mod.graphic.offsetX(mod.graphic.width() / 2);
+            mod.graphic.offsetY(mod.graphic.height() / 2);
+
+
+            mod.graphic.rotate(90);
+
+            if (mod.rotation == 5){
+                mod.rotation = 1;
+                mod.graphic.offsetX(0);
+                mod.graphic.offsetY(0);
+                mod.graphic.setAttrs({
+                    x: mod.graphic.getX() - mod.graphic.width() / 2,
+                    y: mod.graphic.getY() - mod.graphic.height() / 2,
+                });
+            }
+            mods_layer.draw();
+        }
     }
 });
 
@@ -826,10 +822,10 @@ button.on('click', () => {
     if (button.attrs.state){
         text = "Start";
         ball.anim.stop();
-
     }else{
         text = "Stop";
         ball.anim.start();
+        ball.wipe_vector();
     }
     button.attrs.state = !button.attrs.state;
     button.setAttrs({
@@ -842,60 +838,54 @@ button.on('click', () => {
 background_layer.add(button);
 
 
-let field = new Field(320,40,8, 10, 40, 12, ['green', 'red']);
+let field = new Field(320,40,8, 10, 40, 6, ['green', 'red']);
 
 docer1 = new Docer(40,40,5, 4, 40, 12, 'green');
 docer2 = new Docer(760,450,5, 4, 40, 12, 'red');
 
 
 
-new Modifier(40, "res/images/add_etheral.png", docer1, 'mod','etheral');
-new Modifier(40, "res/images/add_fake.png", docer1, 'mod','fake');
-new Modifier(40, "res/images/add_fast.png", docer1, 'mod','fast');
-new Modifier(40, "res/images/add_slow.png", docer1, 'mod','slow');
-new Modifier(40, "res/images/add_magnet.png", docer1, 'mod','magnet');
-new Modifier(40, "res/images/add_portal.png", docer1, 'mod','portal');
-new Modifier(40, "res/images/add_random.png", docer1, 'mod','random');
-new Modifier(40, "res/images/add_timer.png", docer1, 'mod','timer');
-new Modifier(40, "res/images/add_vector.png", docer1, 'mod','vector');
-new Modifier(40, "res/images/add_wallbreaker.png", docer1, 'mod','wallbreaker');
+new Modifier(40, "res/images_v2/add_etheral.png", docer1, 'mod','etheral');
+new Modifier(40, "res/images_v2/add_straight_reflect.png", docer1, 'mod','straight');
+new Modifier(40, "res/images_v2/add_interceptor.png", docer1, 'mod','mirror');
 
-new Modifier(40, "res/images/base_etheral.png", docer1, 'base','etheral');
-new Modifier(40, "res/images/base_fast.png", docer1, 'base','fast');
-new Modifier(40, "res/images/base_magnet.png", docer1, 'base','magnet');
-new Modifier(40, "res/images/base_slow.png", docer1, 'base','slow');
-new Modifier(40, "res/images/base_vector.png", docer1, 'base','vector');
+new Modifier(40, "res/images_v2/rotate.png", docer1, 'mod','rotating');
+
+new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
+new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
+new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
+new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
+new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
+new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
 
 
-new Modifier(40, "res/images/add_etheral.png", docer2, 'mod','etheral');
-new Modifier(40, "res/images/add_fake.png", docer2, 'mod','fake');
-new Modifier(40, "res/images/add_fast.png", docer2, 'mod','fast');
-new Modifier(40, "res/images/add_slow.png", docer2, 'mod','slow');
-new Modifier(40, "res/images/add_magnet.png", docer2, 'mod','magnet');
-new Modifier(40, "res/images/add_portal.png", docer2, 'mod','portal');
-new Modifier(40, "res/images/add_random.png", docer2, 'mod','random');
-new Modifier(40, "res/images/add_timer.png", docer2, 'mod','timer');
-new Modifier(40, "res/images/add_vector.png", docer2, 'mod','vector');
-new Modifier(40, "res/images/add_wallbreaker.png", docer2, 'mod','wallbreaker');
+new Modifier(40, "res/images_v2/add_etheral.png", docer2, 'mod','etheral');
+new Modifier(40, "res/images_v2/add_straight_reflect.png", docer2, 'mod','straight');
+new Modifier(40, "res/images_v2/add_interceptor.png", docer2, 'mod','mirror');
 
-new Modifier(40, "res/images/base_etheral.png", docer2, 'base','etheral');
-new Modifier(40, "res/images/base_fast.png", docer2, 'base','fast');
-new Modifier(40, "res/images/base_magnet.png", docer2, 'base','magnet');
-new Modifier(40, "res/images/base_slow.png", docer2, 'base','slow');
-new Modifier(40, "res/images/base_vector.png", docer2, 'base','vector');
+new Modifier(40, "res/images_v2/rotate.png", docer2, 'mod','rotating');
 
-new Modifier(40, "res/images/hole.png", field, 'hole','red', null, {x: 4, y: 0});
-new Modifier(40, "res/images/hole.png", field, 'hole','green', null,{x: 3, y: 9});
+new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
+new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
+new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
+new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
+new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
+new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
+
+new Modifier(40, "res/images_v2/hole.png", field, 'hole','red', false, {x: 4, y: 0});
+new Modifier(40, "res/images_v2/hole.png", field, 'hole','green', false,{x: 3, y: 9});
+
 
 // ball = new Ball(field.center.x - 90, field.center.y + 10, 10, "blue", {x: -2,y: 0}, field);
-ball = new Ball(field.center.x, field.center.y, 10, "blue", null, field);
-
+ball = new Ball(field.center.x + 20, field.center.y, 10, "blue", 5, null, field);
 
 stage.add(background_layer);
 stage.add(cells_layer);
 stage.add(bases_layer);
 stage.add(mods_layer);
 stage.add(ball_layer);
+
+round_counter.new_round();
 
 background_layer.draw();
 cells_layer.draw();
