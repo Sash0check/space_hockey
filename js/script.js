@@ -476,19 +476,22 @@ class Ball{
                 console.log(cell);
                 tparent.graphic.setX(cell.graphic.getX() + cell.graphic.getWidth());
                 tparent.graphic.setX(cell.graphic.getY() + cell.graphic.getHeight());
-                vector.x = Math.abs(vector.x);
-                vector.y = Math.abs(vector.y);
-                console.log(vector);
+                let z = tparent.speed * tparent.speed;
+                let factor = z / 2;
+                let x = factor ** 0.5;
+                let y = factor ** 0.5;
                 if (rotation == 1){
-                    vector.y *= -1;
+                    y *= -1;
                 }else if (rotation == 2){
 
                 }else if (rotation == 3){
-                    vector.x *=-1;
+                    x *=-1;
                 }else if (rotation == 4){
-                    vector.x *=-1;
-                    vector.y *=-1;
+                    x *=-1;
+                    y *=-1;
                 }
+                tparent.vector.x = x;
+                tparent.vector.y = y;
                 return vector
             },
         };
