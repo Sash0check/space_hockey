@@ -9,6 +9,238 @@ let docer2;
 let ball;
 let button;
 
+let my_figures = null;
+
+let url = 'https://api.arstand-lab.ru/api/0';
+
+function auth(){
+    var xhr = new XMLHttpRequest();
+
+    xhr.open('POST', url + '/auth/login/', false);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+
+    data = JSON.stringify({
+        username: "zoya",
+        password: "spbFpn6.S'"
+    });
+
+    xhr.send(data);
+
+    if (xhr.status ){
+        // console.log(xhr.responseText);
+    }
+}
+// auth();
+
+
+
+let state = 0;
+let status_message = new Konva.Text({
+    x: 700,
+    y: 100,
+    text: "СТАТУС\nожидание мэпинга для стенда от участника и фигур всего поля",
+    fontSize: 18,
+    width: 500,
+    fontFamily: 'Calibri',
+    fill: 'black'
+});
+
+
+function get_figures(){
+    let figures = [];
+    for (var i = 0; i <  my_figures.length; i++){
+        // console.log(my_figures[i]);
+        let fig = {x: my_figures[i].field_coords.x, y: my_figures[i].field_coords.y,
+            angle:0, modifier: 1};
+        figures.push(fig);
+    }
+    return figures;
+}
+
+let enemy_figures = [];
+
+function set_figures(figures){
+    if (figures){
+
+    }else {
+        figures = [
+            {
+                "x": 0,
+                "y": 0,
+                "angle": 0,
+                "modifier": 1
+            },
+            {
+                "x": 1,
+                "y": 0,
+                "angle": 0,
+                "modifier": 2
+            },
+            {
+                "x": 2,
+                "y": 0,
+                "angle": 0,
+                "modifier": 3
+            },
+            {
+                "x": 3,
+                "y": 0,
+                "angle": 0,
+                "modifier": 4
+            },
+            {
+                "x": 4,
+                "y": 0,
+                "angle": 0,
+                "modifier": 5
+            },
+            {
+                "x": 5,
+                "y": 0,
+                "angle": 0,
+                "modifier": 6
+            }
+        ];
+    }
+    for (var i = 0; i <  figures.length; i++){
+        coords = {x: figures[i].x, y: figures[i].y};
+
+        enemy_figures.push(new Modifier(40, "res/images_v2/add_etheral.png", field, 'mod','etheral', null, coords));
+    }
+}
+
+
+function define_ball(vector){
+    ball = new Ball(field.center.x + 20, field.center.y, 10, "blue", 5, vector, field);
+    ball.draw_vector();
+}
+
+function send_ball_path(){
+    let coords = [];
+    for (var i = 0; i < ball.path.length; i++){
+        let coord = [ball.path[i].x, ball.path[i].y];
+        coords.push(coord);
+    }
+    console.log(coords);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url + '/game/status/', false);
+    xhr.setRequestHeader("Authorization", 'Token 10e88f0a3b0ef924623600aa838580d77a726fec');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+
+    data = JSON.stringify({
+        action: "GameEnded",
+        positions: coords
+    });
+
+    xhr.send(data);
+    console.log(xhr.status);
+    
+}
+
+function change_state(){
+    switch (state) {
+        case 0:
+            break;
+        case 1:
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('GET', url+ '/game/ball/', false);
+            xhr.setRequestHeader("Authorization", 'Token 10e88f0a3b0ef924623600aa838580d77a726fec');
+            xhr.send();
+
+            console.log(xhr.status);
+            if (xhr.status == 200) {
+                answer = JSON.parse(xhr.responseText);
+                console.log(answer);
+                ang = answer.ang;
+                vector = {x: null, y: null};
+                switch (ang) {
+                    case 45:
+                        vector.x = 5;
+                        vector.y = -5;
+                        break;
+                    case 135:
+                        vector.x = -5;
+                        vector.y = -5;
+                        break;
+                    case 225:
+                        vector.x = -5;
+                        vector.y = 5;
+                        break;
+                    case 315:
+                        vector.x = 5;
+                        vector.y = 5;
+                        break;
+
+                }
+                define_ball(vector);
+
+            }
+            break;
+        case 2:
+
+            break;
+        case 3:
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('GET', url+ '/game/figures/', false);
+            xhr.setRequestHeader("Authorization", 'Token 10e88f0a3b0ef924623600aa838580d77a726fec');
+            xhr.send();
+            console.log(xhr.status);
+            if (xhr.status == 200) {
+                answer = JSON.parse(xhr.responseText);
+                console.log(answer);
+                set_figures(answer);
+            }
+            break;
+        case 4:
+            break;
+        case 5:
+            ball.anim.start();
+            break;
+        case 6:
+            ball.anim.stop();
+            send_ball_path();
+            break;
+        case 7:
+            round_counter.new_round();
+            break;
+        case 8:
+            break;
+        case 9:
+            break;
+    }
+}
+
+function request_handler(){
+    var xhr = new XMLHttpRequest();
+
+    xhr.open('GET', url+ '/game/status/', true);
+    xhr.setRequestHeader("Authorization", 'Token 10e88f0a3b0ef924623600aa838580d77a726fec');
+    xhr.send();
+
+    xhr.onload = function (e) {
+        if (xhr.status === 200) {
+            answer = JSON.parse(xhr.responseText);
+            // console.log(answer);
+            status_message.setAttrs({
+                text: "СТАТУС\n" + answer.status_message + "\n responseText\n" + xhr.responseText
+            });
+            background_layer.draw();
+
+            new_state = parseInt(answer.status);
+            if (new_state != state) {
+                state = new_state;
+                change_state();
+            }
+        }
+    }
+}
+
+let timerId = setInterval(request_handler, 500)
+
+
+
 class RoundSystem{
     constructor() {
         this.counter = 0;
@@ -35,23 +267,23 @@ class RoundSystem{
     }
 
     new_round(){
-        this.hits = 10;
-        this.counter++;
-        this.update();
+        // docer2.respawn();
 
-        button.setAttrs({
-            text: "Start",
-            state: false
-        });
+        if (ball){
+            ball.anim.stop();
+            ball.graphic.remove();
+        }
 
-
-        // field.clear();
-
-        ball.anim.stop();
-        ball.respawn();
-        ball.draw_vector();
+        for (var i = 0; i < enemy_figures.length; i++){
+            enemy_figures[i].graphic.remove();
+        }
+        enemy_figures = [];
+        field.clear();
         ball_layer.draw();
         background_layer.draw();
+        mods_layer.draw();
+        cells_layer.draw();
+
     }
 
     update(){
@@ -76,7 +308,7 @@ let bases_layer = new Konva.Layer();
 let mods_layer = new Konva.Layer();
 let ball_layer = new Konva.Layer();
 
-
+background_layer.add(status_message);
 
 function randomInt(min, max) {
     return min + Math.floor((max - min) * Math.random());
@@ -145,8 +377,9 @@ class Counter {
 }
 
 class Cell {
-    constructor(x, y, size, color) {
+    constructor(x, y, size, color, field_coords) {
         let tparent = this;
+        this.field_coords = field_coords;
         this.graphic = new Konva.Rect({
             x: x,
             y: y,
@@ -221,7 +454,7 @@ class Field {
             for (let j = 0; j < this.height; j++){
                 let x = this.pos_x + i * this.cell_size + this.padding * i;
                 let y = this.pos_y + j * this.cell_size + this.padding * j;
-                this.cells[i].push(new Cell(x, y, this.cell_size, '#337DFF'));
+                this.cells[i].push(new Cell(x, y, this.cell_size, '#337DFF', {x: i, y: j}));
                 cells_layer.add(this.cells[i][j].graphic);
             }
         }
@@ -247,6 +480,7 @@ class Modifier {
         this.life = 5;
         this.rotation = 1;
         this.rotation_storage = null;
+        this.field_coords = null;
         let tparent = this;
         this.imageObj.onload = function() {
             let graphic = new Konva.Image({
@@ -264,6 +498,7 @@ class Modifier {
             }else{
                 let x = docer.pos_x + coords.x * docer.cell_size + docer.padding * coords.x;
                 let y = docer.pos_y + coords.y * docer.cell_size + docer.padding * coords.y;
+                tparent.field_coords = coords;
                 docer.cells[coords.x][coords.y].slots['hole'] = tparent;
                 // console.log(tparent);
                 graphic.setX(x);
@@ -430,6 +665,7 @@ class Ball{
         this.speed = speed;
         this.last_cell = null;
         let tparent = this;
+        this.path = [];
 
         this.actions = {
             "etheral" : function(vector, angle){
@@ -550,30 +786,33 @@ class Ball{
                 mod = cell.slots["mod"];
                 hole = cell.slots["hole"];
                 if (cell != tparent.last_cell){
-                    if (base != null){
-                        if (tparent.in_fly && base.is_long){
-                            tparent.make_ground();
-                            tparent.in_fly = false;
-                            if (base.hit() == "stop")
-                                return;
-                        }else if(tparent.in_fly && !base.is_long){
-
-                        }else{
-                            let probability = randomInt(1, 100);
-                            if (probability <= 15) {
-                                tparent.in_fly = true;
-                            }
-                            let angle = tparent.get_angle(pos, cell);
-                            if (mod != null) {
-                                tparent.actions[mod.ability](tparent.vector, angle, mod.rotation, cell);
-                            } else {
-                                tparent.actions["normal"](tparent.vector, angle);
-                            }
-                            if (base.hit() == "stop")
-                                return;
-                        }
-
+                    if (mod != null){
+                        tparent.path.push(mod.field_coords);
                     }
+                    // if (base != null){
+                    //     if (tparent.in_fly && base.is_long){
+                    //         tparent.make_ground();
+                    //         tparent.in_fly = false;
+                    //         if (base.hit() == "stop")
+                    //             return;
+                    //     }else if(tparent.in_fly && !base.is_long){
+                    //
+                    //     }else{
+                    //         let probability = randomInt(1, 100);
+                    //         if (probability <= 15) {
+                    //             tparent.in_fly = true;
+                    //         }
+                    //         let angle = tparent.get_angle(pos, cell);
+                    //         if (mod != null) {
+                    //             tparent.actions[mod.ability](tparent.vector, angle, mod.rotation, cell);
+                    //         } else {
+                    //             tparent.actions["normal"](tparent.vector, angle);
+                    //         }
+                    //         if (base.hit() == "stop")
+                    //             return;
+                    //     }
+                    //
+                    // }
                 }
                 tparent.last_cell = cell;
             }
@@ -750,6 +989,9 @@ stage.on('dragend', function(evt) {
                 } else {
                     evt.target.setX(cell.graphic.position().x);
                     evt.target.setY(cell.graphic.position().y);
+                    // console.log(evt.target.attrs.parent_class);
+                    evt.target.attrs.parent_class.field_coords = {x: cell.field_coords.x, y: cell.field_coords.y};
+                    console.log(evt.target.attrs.parent_class)
                     last_place.slots[type] = null;
                     cell.slots[type] = evt.target.attrs.parent_class;
                     bases_layer.draw();
@@ -813,29 +1055,54 @@ stage.on('contextmenu', function(e) {
 button = new Konva.Text({
     x: 40,
     y: 500,
-    text: "Start",
-    fontSize: 72,
+    text: "Send my figures",
+    fontSize: 32,
     fontFamily: 'Calibri',
     fill: 'Black',
     state: false
 });
 
 button.on('click', () => {
-    let text = "";
-    if (button.attrs.state){
-        text = "Start";
-        ball.anim.stop();
-    }else{
-        text = "Stop";
-        ball.anim.start();
-        ball.wipe_vector();
+    if (state == 1) {
+        var xhr = new XMLHttpRequest();
+
+        xhr.open('POST', url + '/game/figures/', false);
+        xhr.setRequestHeader("Authorization", 'Token 10e88f0a3b0ef924623600aa838580d77a726fec');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+
+        data = JSON.stringify({
+            sender: "app",
+            figures: get_figures()
+        });
+
+        xhr.send(data);
+        if (xhr.status == 200) {
+            // console.log(xhr.responseText);
+            button.setAttrs({
+                text: "succes",
+            });
+        } else {
+            button.setAttrs({
+                text: xhr.status,
+            });
+        }
+
+        // let text = "";
+        // if (button.attrs.state){
+        //     text = "Start";
+        //     ball.anim.stop();
+        // }else{
+        //     text = "Stop";
+        //     ball.anim.start();
+        //     ball.wipe_vector();
+        // }
+        // button.attrs.state = !button.attrs.state;
+        // button.setAttrs({
+        //     text: text,
+        // });
+        background_layer.draw();
+        // alert('clicked on canvas button');
     }
-    button.attrs.state = !button.attrs.state;
-    button.setAttrs({
-        text: text,
-    });
-    background_layer.draw();
-    // alert('clicked on canvas button');
 });
 
 background_layer.add(button);
@@ -848,39 +1115,39 @@ docer2 = new Docer(760,450,5, 4, 40, 12, 'red');
 
 
 
-new Modifier(40, "res/images_v2/add_etheral.png", docer1, 'mod','etheral');
-new Modifier(40, "res/images_v2/add_straight_reflect.png", docer1, 'mod','straight');
-new Modifier(40, "res/images_v2/add_interceptor.png", docer1, 'mod','mirror');
+// new Modifier(40, "res/images_v2/add_etheral.png", docer1, 'mod','etheral');
+// new Modifier(40, "res/images_v2/add_straight_reflect.png", docer1, 'mod','straight');
+// new Modifier(40, "res/images_v2/add_interceptor.png", docer1, 'mod','mirror');
+//
+// new Modifier(40, "res/images_v2/rotate.png", docer1, 'mod','rotating');
+//
+// new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
+// new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
+// new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
+// new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
+// new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
+// new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
 
-new Modifier(40, "res/images_v2/rotate.png", docer1, 'mod','rotating');
+my_figures = [
+new Modifier(40, "res/images_v2/add_etheral.png", docer2, 'mod','etheral'),
+new Modifier(40, "res/images_v2/add_straight_reflect.png", docer2, 'mod','straight'),
+new Modifier(40, "res/images_v2/add_interceptor.png", docer2, 'mod','mirror'),
+new Modifier(40, "res/images_v2/rotate.png", docer2, 'mod','rotating')
+];
 
-new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
-new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
-new Modifier(40, "res/images_v2/base_short.png", docer1, 'base',false, false);
-new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
-new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
-new Modifier(40, "res/images_v2/base_long.png", docer1, 'base',false, true);
-
-
-new Modifier(40, "res/images_v2/add_etheral.png", docer2, 'mod','etheral');
-new Modifier(40, "res/images_v2/add_straight_reflect.png", docer2, 'mod','straight');
-new Modifier(40, "res/images_v2/add_interceptor.png", docer2, 'mod','mirror');
-
-new Modifier(40, "res/images_v2/rotate.png", docer2, 'mod','rotating');
-
-new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
-new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
-new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
-new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
-new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
-new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
-
+// new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
+// new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
+// new Modifier(40, "res/images_v2/base_short.png", docer2, 'base',false, false);
+// new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
+// new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
+// new Modifier(40, "res/images_v2/base_long.png", docer2, 'base',false, true);
+//
 new Modifier(40, "res/images_v2/hole.png", field, 'hole','red', false, {x: 4, y: 0});
 new Modifier(40, "res/images_v2/hole.png", field, 'hole','green', false,{x: 3, y: 9});
 
 
 // ball = new Ball(field.center.x - 90, field.center.y + 10, 10, "blue", {x: -2,y: 0}, field);
-ball = new Ball(field.center.x + 20, field.center.y, 10, "blue", 5, null, field);
+
 
 stage.add(background_layer);
 stage.add(cells_layer);
